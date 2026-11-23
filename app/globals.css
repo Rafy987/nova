@@ -1,32 +1,36 @@
 @import "tailwindcss";
 
 /* ───────────────────────── Design tokens ─────────────────────────
-   One accent (cyan) + neutrals. Status colors only where needed.   */
+   Always dark. One accent (cyan) + neutrals. Status colors only where needed. */
 @theme {
-  --color-void: #04070c;        /* page background */
-  --color-deep: #070d16;        /* panels */
-  --color-line: #12304a;        /* thin HUD lines */
-  --color-line-soft: #0c1d2e;
+  --color-void: #03060b;        /* page background */
+  --color-deep: #07101a;        /* panels */
+  --color-line: #164059;        /* thin HUD lines */
+  --color-line-soft: #0d2233;
   --color-ink: #e6f1f7;         /* main text */
-  --color-muted: #6b8396;       /* labels */
-  --color-dim: #3a5062;
+  --color-muted: #7590a3;       /* labels */
+  --color-dim: #435a6b;
   --color-accent: #22d3ee;      /* the ONE accent */
+  --color-accent-bright: #a5f3fc;
   --color-accent-soft: #0e7490;
   --color-ok: #4ade80;
   --color-warn: #fbbf24;
   --color-danger: #f87171;
 
+  --font-display: var(--font-space-grotesk);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
   --animate-breathe: breathe 5.5s ease-in-out infinite;
   --animate-spin-slow: spin 60s linear infinite;
-  --animate-spin-rev: spin-rev 90s linear infinite;
+  --animate-spin-mid: spin 24s linear infinite;
+  --animate-spin-rev: spin-rev 40s linear infinite;
+  --animate-spin-fast: spin 9s linear infinite;
   --animate-blink: blink 1.6s steps(2, start) infinite;
 
   @keyframes breathe {
     0%, 100% { transform: scale(1); opacity: 0.85; }
-    50% { transform: scale(1.035); opacity: 1; }
+    50% { transform: scale(1.04); opacity: 1; }
   }
   @keyframes spin-rev {
     to { transform: rotate(-360deg); }
@@ -36,8 +40,10 @@
   }
 }
 
+/* Force dark regardless of OS light/dark setting */
 html {
   color-scheme: dark;
+  background-color: var(--color-void);
 }
 
 body {
@@ -46,26 +52,124 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* Subtle HUD grid + vignette behind everything */
+/* ───────── Background: grid + vignette ───────── */
 .hud-grid {
   background-image:
-    linear-gradient(to right, rgb(34 211 238 / 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(34 211 238 / 0.045) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    linear-gradient(to right, rgb(34 211 238 / 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(34 211 238 / 0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, black 20%, transparent 85%);
 }
 
 .hud-vignette {
-  background: radial-gradient(ellipse at 50% 45%, rgb(14 116 144 / 0.16), transparent 60%);
+  background:
+    radial-gradient(ellipse 50% 45% at 50% 42%, rgb(14 116 144 / 0.22), transparent 70%),
+    radial-gradient(ellipse 110% 90% at 50% 50%, transparent 55%, rgb(0 0 0 / 0.75) 100%);
 }
 
-/* Small monospace HUD label */
+/* ───────── Labels ───────── */
 .hud-label {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 10px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--color-muted);
+}
+
+.glow-text {
+  text-shadow: 0 0 8px rgb(34 211 238 / 0.8), 0 0 20px rgb(34 211 238 / 0.35);
+}
+
+/* ───────── Glass panel ───────── */
+.glass {
+  background:
+    linear-gradient(180deg, rgb(34 211 238 / 0.05), transparent 40%),
+    rgb(6 14 23 / 0.55);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  box-shadow: inset 0 1px 0 rgb(165 243 252 / 0.06), 0 20px 50px -20px rgb(0 0 0 / 0.8);
+}
+
+/* ───────── Energy core ───────── */
+.core-shell {
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle closest-side,
+    rgb(34 211 238 / 0.10) 0%,
+    rgb(6 40 56 / 0.35) 62%,
+    rgb(34 211 238 / 0.30) 86%,
+    rgb(165 243 252 / 0.95) 97%,
+    rgb(34 211 238 / 0) 100%
+  );
+  box-shadow:
+    0 0 50px rgb(34 211 238 / 0.35),
+    0 0 140px rgb(34 211 238 / 0.15),
+    inset 0 0 50px rgb(34 211 238 / 0.30);
+}
+
+.core-plasma {
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgb(34 211 238 / 0.65) 50deg,
+    transparent 110deg,
+    rgb(165 243 252 / 0.45) 170deg,
+    transparent 230deg,
+    rgb(34 211 238 / 0.55) 290deg,
+    transparent 360deg
+  );
+  filter: blur(12px);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+}
+
+.core-nucleus {
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle closest-side,
+    #ffffff 0%,
+    #cffafe 22%,
+    rgb(34 211 238 / 0.7) 50%,
+    rgb(34 211 238 / 0) 100%
+  );
+  filter: blur(1.5px);
+}
+
+.ring-glow {
+  filter: drop-shadow(0 0 3px rgb(34 211 238 / 0.9));
+}
+
+/* Tilted orbit rings (fake 3D) */
+.orbit {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid rgb(34 211 238 / 0.35);
+  transform-style: preserve-3d;
+}
+.orbit::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 9999px;
+  background: var(--color-accent-bright);
+  box-shadow: 0 0 10px 2px rgb(34 211 238 / 0.9);
+}
+.orbit-a { animation: orbit-a 14s linear infinite; }
+.orbit-b { animation: orbit-b 20s linear infinite; }
+
+@keyframes orbit-a {
+  from { transform: rotateX(72deg) rotateY(12deg) rotateZ(0deg); }
+  to   { transform: rotateX(72deg) rotateY(12deg) rotateZ(360deg); }
+}
+@keyframes orbit-b {
+  from { transform: rotateX(68deg) rotateY(-50deg) rotateZ(360deg); }
+  to   { transform: rotateX(68deg) rotateY(-50deg) rotateZ(0deg); }
 }
 
 :focus-visible {

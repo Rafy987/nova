@@ -17,11 +17,14 @@ export default function Home() {
 
         <main className="grid flex-1 grid-cols-1 items-center gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-10">
           {/* Center: orb + state (first on mobile) */}
-          <div className="flex flex-col items-center gap-6 lg:order-2">
+          <div className="flex flex-col items-center lg:order-2">
             <Orb />
-            <div className="flex flex-col items-center gap-1.5">
-              <span className="hud-label text-accent">Idle</span>
-              <span className="font-mono text-[11px] text-dim">Awaiting input</span>
+            <div className="mt-1 flex flex-col items-center gap-1" role="status" aria-live="polite">
+              <span className="flex items-center gap-2 border border-accent/30 bg-accent/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em] text-accent glow-text">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)] animate-breathe" />
+                Idle
+              </span>
+              <span className="font-mono text-[10px] tracking-[0.15em] text-dim">AWAITING INPUT</span>
             </div>
           </div>
 
@@ -46,9 +49,9 @@ export default function Home() {
           <Panel label="Modules" meta="0 active" className="lg:order-3 lg:max-w-sm w-full">
             <ul className="space-y-2.5">
               {["Weather", "Time / Zones", "Calculator", "Reminders", "Notes"].map((name) => (
-                <li key={name} className="flex items-center justify-between font-mono text-xs">
-                  <span className="text-ink/70">{name}</span>
-                  <span className="text-dim">STANDBY</span>
+                <li key={name} className="flex items-center justify-between border-b border-accent/5 pb-2 last:border-0 last:pb-0">
+                  <span className="font-display text-sm text-ink/80">{name}</span>
+                  <span className="hud-label text-dim">Standby</span>
                 </li>
               ))}
             </ul>

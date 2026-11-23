@@ -1,7 +1,8 @@
 /**
  * Static energy core (Phase 1).
- * Layers, back to front: soft halo -> rotating tick ring -> dashed ring -> glowing core.
- * Phase 2 replaces this with an audio-reactive version.
+ * Layers, back to front:
+ *   halo -> tick ring -> arc rings -> tilted orbits -> translucent shell -> plasma -> nucleus
+ * Phase 2 makes these react to audio and state.
  */
 
 const TICKS = Array.from({ length: 72 }, (_, i) => i * 5);
@@ -10,39 +11,40 @@ const BEARINGS = ["000", "090", "180", "270"];
 export default function Orb() {
   return (
     <div
-      className="relative aspect-square w-[min(72vw,420px)]"
+      className="relative aspect-square w-[min(78vw,440px)] [perspective:900px]"
       role="img"
       aria-label="NOVA core, idle"
     >
       {/* Halo */}
-      <div className="absolute inset-[18%] rounded-full bg-accent/20 blur-3xl animate-breathe" />
+      <div className="absolute inset-[22%] rounded-full bg-accent/25 blur-3xl animate-breathe" />
 
       {/* Outer tick ring */}
-      <svg viewBox="0 0 200 200" className="absolute inset-0 animate-spin-slow">
-        <circle cx="100" cy="100" r="96" fill="none" stroke="var(--color-line)" strokeWidth="0.4" />
+      <svg viewBox="0 0 200 200" className="absolute inset-0 animate-spin-slow" aria-hidden>
+        <circle cx="100" cy="100" r="97" fill="none" stroke="var(--color-line)" strokeWidth="0.5" />
         {TICKS.map((deg) => {
           const major = deg % 45 === 0;
           return (
             <line
               key={deg}
               x1="100"
-              y1={major ? 4 : 6}
+              y1={major ? 3 : 5.5}
               x2="100"
-              y2="10"
-              stroke={major ? "var(--color-accent)" : "var(--color-dim)"}
-              strokeWidth={major ? 0.8 : 0.4}
+              y2="9"
+              stroke={major ? "var(--color-accent)" : "var(--color-muted)"}
+              strokeOpacity={major ? 1 : 0.5}
+              strokeWidth={major ? 0.9 : 0.4}
               transform={`rotate(${deg} 100 100)`}
             />
           );
         })}
       </svg>
 
-      {/* Bearing labels (do not rotate) */}
+      {/* Bearing labels (static) */}
       <svg viewBox="0 0 200 200" className="absolute inset-0" aria-hidden>
         {BEARINGS.map((label, i) => {
           const a = (i * Math.PI) / 2;
-          const x = 100 + Math.sin(a) * 84;
-          const y = 100 - Math.cos(a) * 84 + 1.5;
+          const x = (100 + Math.sin(a) * 85).toFixed(2);
+          const y = (100 - Math.cos(a) * 85 + 1.5).toFixed(2);
           return (
             <text
               key={label}
@@ -60,37 +62,39 @@ export default function Orb() {
         })}
       </svg>
 
-      {/* Inner dashed ring with two arc segments */}
-      <svg viewBox="0 0 200 200" className="absolute inset-0 animate-spin-rev" aria-hidden>
-        <circle
-          cx="100" cy="100" r="72" fill="none"
-          stroke="var(--color-accent-soft)" strokeWidth="0.5" strokeDasharray="1 3"
-        />
-        <circle
-          cx="100" cy="100" r="64" fill="none"
-          stroke="var(--color-accent)" strokeWidth="1" strokeLinecap="round"
-          strokeDasharray="40 362" opacity="0.8"
-        />
-        <circle
-          cx="100" cy="100" r="64" fill="none"
-          stroke="var(--color-accent)" strokeWidth="1" strokeLinecap="round"
-          strokeDasharray="12 390" strokeDashoffset="-200" opacity="0.5"
-        />
+      {/* Mid ring: dotted track + bright arcs (counter-rotating) */}
+      <svg viewBox="0 0 200 200" className="ring-glow absolute inset-0 animate-spin-rev" aria-hidden>
+        <circle cx="100" cy="100" r="76" fill="none" stroke="var(--color-accent)" strokeOpacity="0.35" strokeWidth="0.5" strokeDasharray="0.8 2.6" />
+        <circle cx="100" cy="100" r="70" fill="none" stroke="var(--color-accent)" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="56 384" />
+        <circle cx="100" cy="100" r="70" fill="none" stroke="var(--color-accent)" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="18 422" strokeDashoffset="-220" opacity="0.7" />
       </svg>
 
-      {/* Core sphere */}
-      <div className="absolute inset-[30%] animate-breathe">
-        <div
-          className="h-full w-full rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle at 38% 32%, #e0fbff 0%, #67e8f9 14%, #0891b2 42%, #083344 72%, #020a10 100%)",
-            boxShadow:
-              "0 0 40px rgb(34 211 238 / 0.45), 0 0 120px rgb(34 211 238 / 0.18), inset 0 0 30px rgb(2 10 16 / 0.9)",
-          }}
-        />
-        {/* Thin equator line for a sense of 3D */}
-        <div className="absolute inset-x-[6%] top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+      {/* Inner ring: thin, faster */}
+      <svg viewBox="0 0 200 200" className="ring-glow absolute inset-0 animate-spin-fast" aria-hidden>
+        <circle cx="100" cy="100" r="60" fill="none" stroke="var(--color-accent-bright)" strokeOpacity="0.25" strokeWidth="0.4" />
+        <circle cx="100" cy="100" r="60" fill="none" stroke="var(--color-accent-bright)" strokeWidth="0.8" strokeLinecap="round" strokeDasharray="28 349" />
+      </svg>
+
+      {/* Tilted orbits for depth */}
+      <div className="absolute inset-[24%] [transform-style:preserve-3d]">
+        <div className="orbit orbit-a" />
+        <div className="orbit orbit-b" />
+      </div>
+
+      {/* Core */}
+      <div className="absolute inset-[33%] animate-breathe">
+        {/* translucent shell with bright rim */}
+        <div className="core-shell absolute inset-0" />
+        {/* faint wireframe latitudes / meridians */}
+        <svg viewBox="0 0 100 100" className="absolute inset-0 opacity-40" aria-hidden>
+          <ellipse cx="50" cy="50" rx="46" ry="14" fill="none" stroke="var(--color-accent-bright)" strokeWidth="0.4" />
+          <ellipse cx="50" cy="50" rx="46" ry="30" fill="none" stroke="var(--color-accent)" strokeWidth="0.3" />
+          <ellipse cx="50" cy="50" rx="16" ry="46" fill="none" stroke="var(--color-accent)" strokeWidth="0.3" />
+        </svg>
+        {/* swirling plasma */}
+        <div className="core-plasma absolute inset-[10%] animate-spin-fast" />
+        {/* hot nucleus */}
+        <div className="core-nucleus absolute inset-[30%]" />
       </div>
     </div>
   );

@@ -24,7 +24,7 @@ export default function StatusBar() {
   return (
     <header className="flex items-center justify-between gap-4 border-b border-line-soft px-7 py-4 sm:px-12">
       <div className="flex items-center gap-3">
-        <span className="font-mono text-sm font-semibold tracking-[0.4em] text-ink">NOVA</span>
+        <span className="font-display text-base font-semibold tracking-[0.45em] text-ink">NOVA</span>
         <span className="hidden h-3 w-px bg-line sm:block" />
         <span className="hud-label hidden sm:inline">Voice Interface v0.1</span>
       </div>
