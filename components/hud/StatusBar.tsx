@@ -17,7 +17,15 @@ const MIC_LABEL: Record<MicStatus, string> = {
 };
 
 /** Top HUD bar: system name, status and a live clock. */
-export default function StatusBar({ micStatus = "off" }: { micStatus?: MicStatus }) {
+export default function StatusBar({
+  micStatus = "off",
+  soundOn = true,
+  onToggleSound,
+}: {
+  micStatus?: MicStatus;
+  soundOn?: boolean;
+  onToggleSound?: () => void;
+}) {
   // Clock starts empty on the server and fills in on the client (avoids hydration mismatch).
   const [time, setTime] = useState<string | null>(null);
 
@@ -47,6 +55,17 @@ export default function StatusBar({ micStatus = "off" }: { micStatus?: MicStatus
         <span className={`hud-label hidden md:inline ${micStatus === "on" ? "text-accent" : ""}`}>
           Mic: {MIC_LABEL[micStatus]}
         </span>
+        {onToggleSound && (
+          <button
+            type="button"
+            onClick={onToggleSound}
+            aria-pressed={soundOn}
+            aria-label={soundOn ? "Turn sound cues off" : "Turn sound cues on"}
+            className="hud-label border border-transparent px-1 transition-colors hover:border-line hover:text-ink"
+          >
+            Sfx: {soundOn ? "On" : "Off"}
+          </button>
+        )}
         <span className="hud-label tabular-nums text-ink/80" suppressHydrationWarning>
           {time ?? "--:--:--"}
         </span>
