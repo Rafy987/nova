@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { MicStatus } from "@/hooks/useMicLevel";
 
 function formatTime(d: Date) {
   return d.toLocaleTimeString("en-GB", { hour12: false });
 }
 
+const MIC_LABEL: Record<MicStatus, string> = {
+  off: "Standby",
+  starting: "Opening",
+  on: "Live",
+  denied: "Blocked",
+  unavailable: "Unavailable",
+  error: "Fault",
+};
+
 /** Top HUD bar: system name, status and a live clock. */
-export default function StatusBar() {
+export default function StatusBar({ micStatus = "off" }: { micStatus?: MicStatus }) {
   // Clock starts empty on the server and fills in on the client (avoids hydration mismatch).
   const [time, setTime] = useState<string | null>(null);
 
@@ -34,7 +44,9 @@ export default function StatusBar() {
           <span className="h-1.5 w-1.5 rounded-full bg-ok shadow-[0_0_6px_var(--color-ok)]" />
           Sys online
         </span>
-        <span className="hud-label hidden md:inline">Mic: standby</span>
+        <span className={`hud-label hidden md:inline ${micStatus === "on" ? "text-accent" : ""}`}>
+          Mic: {MIC_LABEL[micStatus]}
+        </span>
         <span className="hud-label tabular-nums text-ink/80" suppressHydrationWarning>
           {time ?? "--:--:--"}
         </span>
