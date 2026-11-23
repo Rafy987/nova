@@ -1,9 +1,13 @@
-# NOVA — Live Voice AI Assistant
+# NOVA — Voice AI Assistant (Desktop + Web)
 
 ## What this project is
-NOVA is a voice-first AI assistant in the browser. The user speaks, NOVA listens, thinks, answers out loud, and can use tools (weather, reminders, notes, web search, calculator, time zones). It should feel like a sci-fi AI assistant (an original design, not a copy of any movie character).
+NOVA is a voice-first AI assistant. The user speaks, NOVA listens, thinks, answers out loud, and can use tools. It should feel like a sci-fi AI assistant (an original design, not a copy of any movie character).
 
-Portfolio project: it must be real, deployed on Vercel with a live link, with a strong README, screenshots and a short demo GIF/video. Later it becomes an installable mobile app (PWA), and maybe a React Native app.
+Two builds from ONE Next.js UI:
+- **Desktop app (Electron, Windows first):** controls the laptop with local tools — open apps (WhatsApp Desktop, Chrome, …), open websites (Instagram, …), find/open files, read + summarize Gmail, check Google Calendar.
+- **Web demo (Vercel):** the live portfolio link. Same UI and voice loop with web-safe tools only (time, calculator, weather, notes, reminders). Desktop-only tools are hidden and labelled "Desktop app only".
+
+Portfolio project: must be real, with a live link, a Windows installer on GitHub Releases, a strong README, screenshots and a short demo video.
 
 ## About me (the developer)
 - Software Engineering graduate. I know JavaScript, React, Node.js, Express, MongoDB, PHP/Laravel, Git.
@@ -23,14 +27,17 @@ Portfolio project: it must be real, deployed on Vercel with a live link, with a 
 
 ## Tech stack
 - Next.js (App Router) + TypeScript + Tailwind CSS v4
-- Speech-to-text: browser Web Speech API first (free); Groq Whisper (free tier) as the better/fallback option
+- Speech-to-text: browser Web Speech API first (free); Groq Whisper (free tier) as the better/fallback option. **In Electron, Web Speech recognition does not work** (it depends on Google's servers that only Chrome can use), so the desktop app uses Groq Whisper. Keep an STT provider interface from Phase 3.
 - LLM: Groq (free tier) with streaming responses and tool calling
 - Text-to-speech: browser speechSynthesis first (free); keep a provider interface so a better voice can be plugged in later
 - Streaming: server route handlers that stream tokens; start speaking the first sentence before the full answer is done (low latency)
 - Visuals: react-three-fiber (three.js) or Canvas for the orb; Web Audio API `AnalyserNode` so the orb reacts to the real microphone and to NOVA's voice
 - Animation: Framer Motion (or CSS) for panels and transitions
 - Tests: Vitest for pure logic (tools, sentence splitting, state machine)
-- Deploy: Vercel (free). Code on GitHub (Rafy987/nova)
+- Desktop: Electron. The main process starts the Next.js server (`output: "standalone"`) on `127.0.0.1` and loads it in a BrowserWindow. Local tools run in the main process and are called from the UI through a small, typed preload API (`window.novaDesktop`) over IPC. The UI detects desktop vs web by checking for that API.
+- Google: OAuth 2.0 for desktop apps (loopback redirect + PKCE), read-only scopes `gmail.readonly` and `calendar.readonly`. Tokens stored encrypted with Electron `safeStorage`, never in the repo or the web build.
+- Packaging: electron-builder → Windows NSIS installer on GitHub Releases (unsigned; code signing costs money).
+- Deploy: Vercel (free) for the web demo. Code on GitHub (Rafy987/nova)
 
 ## Design rules (IMPORTANT — the frontend must look premium)
 - **Dark cinematic HUD:** near-black/deep navy background, thin glowing lines, subtle grid, small monospace labels (e.g. "SYS ONLINE", "LISTENING"), like an aircraft/sci-fi heads-up display.
@@ -60,24 +67,42 @@ Portfolio project: it must be real, deployed on Vercel with a live link, with a 
 - Reminders and timers (browser notifications + local storage)
 - Notes (save/list/delete, local storage)
 - Web search / news (find a free option without a card, or skip honestly)
-- Every tool: typed input/output, validated arguments, unit tests.
+- Desktop only:
+  - Open apps from an allowlist (WhatsApp Desktop, Chrome, VS Code, File Explorer, …). Only opening — never typing, sending or clicking inside them.
+  - Open websites (https only; known sites like Instagram, YouTube, Gmail by name).
+  - Find files by name in allowed folders (Desktop, Documents, Downloads) and open them with the default app. Never open/run executables or scripts (.exe, .bat, .ps1, .msi, …).
+  - Gmail: list/read recent or unread emails and summarize them (read-only).
+  - Google Calendar: today / upcoming events (read-only).
+- Every tool: typed input/output, validated arguments (zod), a risk level, unit tests.
+
+## Desktop safety rules (IMPORTANT)
+- **No arbitrary shell commands.** The LLM can only call the fixed tools above; arguments are validated in the main process, not just the UI.
+- **Risk levels:** `safe` (read, open an app/site/file) runs directly and is shown as a HUD card. Anything that sends, deletes, moves, writes or can't be undone needs an explicit **Confirm** click/Enter in a confirmation card — never a voice "yes" alone.
+- **No messaging automation** for WhatsApp, Instagram or any social app (ToS / ban risk). Only open them.
+- **Prompt injection:** email/file/web content is data, not instructions. Text inside an email can never trigger a tool call without the user asking.
+- Electron security: `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, strict CSP, only allowlisted IPC channels, external links opened via `shell.openExternal` after validation.
+- Least privilege: read-only Google scopes; the user can sign out and delete stored tokens from settings.
+- The Groq key is never bundled in the installer: the desktop user enters their own key in settings (stored with `safeStorage`).
 
 ## Safety and limits
 - Rate limit the API routes per IP (protect free Groq limits).
 - Keep the system prompt short; send only the needed history to save tokens.
-- Microphone permission handling with friendly messages; works only on HTTPS/localhost.
+- Microphone permission handling with friendly messages; works only on HTTPS/localhost (and in Electron).
 - Never claim to have done an action that the tool did not actually do.
 
 ## Build phases (in order)
-1. Project setup + HUD layout + design tokens (dark theme, accent color, fonts) + static orb
-2. Animated, audio-reactive orb (Web Audio API) with the 4 states
-3. Push-to-talk speech-to-text with live transcript
+1. ✅ Project setup + HUD layout + design tokens (dark theme, accent color, fonts) + static orb
+2. ✅ Animated, audio-reactive orb (Web Audio API) with the 4 states + state machine
+3. Push-to-talk (button + Space) speech-to-text with live transcript
 4. Groq chat route with streaming + session memory
 5. Text-to-speech with sentence streaming (speak while text arrives) + barge-in
-6. Tool calling: time, calculator, weather (with HUD cards)
-7. Reminders, timers and notes tools
-8. Hands-free mode (+ optional wake word "Hey Nova") and settings panel (voice, language, sounds)
-9. Error handling, rate limiting, loading states, accessibility
-10. Deploy on Vercel + README + demo GIF
-11. PWA: installable on phones (manifest, icons, offline shell)
-12. CV bullet, LinkedIn post (with demo video), Upwork portfolio text
+6. Tool framework (typed tools, zod validation, risk levels, confirmation card) + web tools: time, calculator, weather (HUD cards)
+7. Notes, reminders and timers tools
+8. Electron shell: wrap the Next.js UI, secure preload/IPC, dev + build scripts, desktop vs web detection
+9. Desktop tools: open apps (allowlist), open websites, find/open files
+10. Google sign-in (OAuth PKCE, read-only): Gmail read + summarize, Calendar today/upcoming
+11. Hands-free mode (+ optional wake word "Hey Nova") and settings panel (voice, language, sounds, API key, Google account)
+12. Hardening: error handling, rate limiting, prompt-injection guards, loading states, accessibility
+13. Release: web demo on Vercel + Windows installer on GitHub Releases + README + demo video
+14. CV bullet, LinkedIn post (with demo video), Upwork portfolio text
+(Optional later: PWA for the web demo.)
