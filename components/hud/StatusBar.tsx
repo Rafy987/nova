@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { MicStatus } from "@/hooks/useMicLevel";
 import { SPEECH_LANGS, type SpeechLang } from "@/lib/stt/types";
+import ProfileButton from "./ProfileButton";
 
 function formatTime(d: Date) {
   return d.toLocaleTimeString("en-GB", { hour12: false });
@@ -25,7 +26,11 @@ export default function StatusBar({
   lang,
   onLangChange,
   langLocked = false,
+  userName,
+  onSaveUserName,
 }: {
+  userName?: string;
+  onSaveUserName?: (name: string) => void;
   micStatus?: MicStatus;
   soundOn?: boolean;
   onToggleSound?: () => void;
@@ -54,7 +59,7 @@ export default function StatusBar({
         <span className="hud-label hidden sm:inline">Voice Interface v0.1</span>
       </div>
 
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-3 sm:gap-5">
         <span className="hud-label hidden items-center gap-2 sm:flex">
           <span className="h-1.5 w-1.5 rounded-full bg-ok shadow-[0_0_6px_var(--color-ok)]" />
           Sys online
@@ -62,6 +67,7 @@ export default function StatusBar({
         <span className={`hud-label hidden md:inline ${micStatus === "on" ? "text-accent" : ""}`}>
           Mic: {MIC_LABEL[micStatus]}
         </span>
+        {onSaveUserName && <ProfileButton name={userName ?? ""} onSave={onSaveUserName} />}
         {lang && onLangChange && (
           <div role="radiogroup" aria-label="Speech language" className="flex items-center border border-line">
             {SPEECH_LANGS.map((l) => {
@@ -91,12 +97,12 @@ export default function StatusBar({
             onClick={onToggleSound}
             aria-pressed={soundOn}
             aria-label={soundOn ? "Turn sound cues off" : "Turn sound cues on"}
-            className="hud-label border border-transparent px-1 transition-colors hover:border-line hover:text-ink"
+            className="hud-label whitespace-nowrap border border-transparent px-1 transition-colors hover:border-line hover:text-ink"
           >
             Sfx: {soundOn ? "On" : "Off"}
           </button>
         )}
-        <span className="hud-label tabular-nums text-ink/80" suppressHydrationWarning>
+        <span className="hud-label hidden tabular-nums text-ink/80 sm:inline" suppressHydrationWarning>
           {time ?? "--:--:--"}
         </span>
       </div>

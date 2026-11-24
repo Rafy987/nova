@@ -1,6 +1,7 @@
 import { chatRequestSchema } from "@/lib/chat/schema";
 import { trimHistory } from "@/lib/chat/history";
 import { buildSystemPrompt } from "@/lib/chat/prompt";
+import { detectReplyStyle } from "@/lib/chat/replyStyle";
 import { createSseParser, parseGroqPayload } from "@/lib/chat/sse";
 import type { ChatErrorCode } from "@/lib/chat/types";
 import { clientIp, createRateLimiter } from "@/lib/rateLimit";
@@ -41,8 +42,10 @@ export async function POST(request: Request) {
   const parsed = chatRequestSchema.safeParse(body);
   if (!parsed.success) return error("invalid_request", 400);
 
-  const { lang } = parsed.data;
+  const { userName } = parsed.data;
   const messages = trimHistory(parsed.data.messages);
+  // Reply style follows the user's LAST message (English / Roman Urdu / Urdu script)
+  const style = detectReplyStyle(messages.at(-1)?.content ?? "");
 
   let upstream: Response;
   try {
@@ -56,7 +59,7 @@ export async function POST(request: Request) {
         max_tokens: 400,
         reasoning_effort: "low", //   less hidden "thinking" = lower latency
         include_reasoning: false, //  only stream the answer, not the reasoning
-        messages: [{ role: "system", content: buildSystemPrompt(lang) }, ...messages],
+        messages: [{ role: "system", content: buildSystemPrompt({ style, userName }) }, ...messages],
       }),
       signal: request.signal, // client disconnects -> stop paying for tokens
     });

@@ -15,13 +15,14 @@ export class ChatError extends Error {
 export async function streamChat(opts: {
   messages: ChatMessage[];
   lang: SpeechLang;
+  userName?: string;
   signal: AbortSignal;
   onToken: (piece: string, fullSoFar: string) => void;
 }): Promise<string> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: opts.messages, lang: opts.lang }),
+    body: JSON.stringify({ messages: opts.messages, lang: opts.lang, userName: opts.userName || undefined }),
     signal: opts.signal,
   });
 

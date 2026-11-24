@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Orb from "@/components/orb/Orb";
 import StatusBar from "@/components/hud/StatusBar";
 import Panel from "@/components/hud/Panel";
@@ -16,6 +16,7 @@ import { trimHistory } from "@/lib/chat/history";
 import { ChatError, streamChat } from "@/lib/chat/client";
 import { CHAT_ERROR_MESSAGES, type ChatMessage } from "@/lib/chat/types";
 import { playCue } from "@/lib/sounds";
+import { getServerUserName, getUserName, setUserName, subscribeUserName } from "@/lib/userProfile";
 import { micMessage, useMicLevel } from "@/hooks/useMicLevel";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 
@@ -35,6 +36,7 @@ export default function NovaHud() {
   const [reply, setReply] = useState<string | null>(null); //       NOVA's reply while streaming
   const [soundOn, setSoundOn] = useState(true);
   const [lang, setLang] = useState<SpeechLang>("en-US");
+  const userName = useSyncExternalStore(subscribeUserName, getUserName, getServerUserName);
 
   const mic = useMicLevel();
   const sttRef = useRef<SttProvider | null>(null);
@@ -172,6 +174,7 @@ export default function NovaHud() {
       full = await streamChat({
         messages: trimHistory(turnsRef.current),
         lang,
+        userName,
         signal: controller.signal,
         onToken: (_piece, soFar) => {
           full = soFar;
@@ -232,6 +235,8 @@ export default function NovaHud() {
         lang={lang}
         onLangChange={changeLang}
         langLocked={state === "listening"}
+        userName={userName}
+        onSaveUserName={setUserName}
       />
 
       <main className="grid flex-1 grid-cols-1 items-center gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-10">
