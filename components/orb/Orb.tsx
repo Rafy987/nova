@@ -13,12 +13,20 @@ import { smooth, targetLevel } from "@/lib/audioLevel";
 const TICKS = Array.from({ length: 72 }, (_, i) => i * 5);
 const BEARINGS = ["000", "090", "180", "270"];
 
+/** Updated by the speech queue on every spoken word (performance.now() timestamp). */
+export interface WordBeat {
+  seen: boolean;
+  last: number;
+}
+
 export default function Orb({
   state,
   micLevelRef,
+  wordBeatRef,
 }: {
   state: NovaState;
   micLevelRef: RefObject<number>;
+  wordBeatRef?: RefObject<WordBeat>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const levelRef = useRef(0);
@@ -33,14 +41,16 @@ export default function Orb({
 
     const loop = (now: number) => {
       const t = (now - t0) / 1000;
-      const target = targetLevel(state, t, micLevelRef.current ?? 0);
+      const beat = wordBeatRef?.current;
+      const voice = beat ? { seen: beat.seen, msSinceBoundary: now - beat.last } : undefined;
+      const target = targetLevel(state, t, micLevelRef.current ?? 0, voice);
       levelRef.current = smooth(levelRef.current, target);
       el.style.setProperty("--level", (levelRef.current * amplitude).toFixed(3));
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [state, micLevelRef]);
+  }, [state, micLevelRef, wordBeatRef]);
 
   return (
     <div

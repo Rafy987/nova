@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import Orb from "@/components/orb/Orb";
+import Orb, { type WordBeat } from "@/components/orb/Orb";
+import AudioToggles from "@/components/hud/AudioToggles";
 import StatusBar from "@/components/hud/StatusBar";
 import Panel from "@/components/hud/Panel";
 import TalkButton from "@/components/hud/TalkButton";
@@ -15,6 +16,10 @@ import { STT_MESSAGES, type SpeechLang, type SttErrorCode, type SttProvider } fr
 import { trimHistory } from "@/lib/chat/history";
 import { ChatError, streamChat } from "@/lib/chat/client";
 import { CHAT_ERROR_MESSAGES, type ChatMessage } from "@/lib/chat/types";
+import { detectReplyStyle } from "@/lib/chat/replyStyle";
+import { createSentenceChunker } from "@/lib/tts/sentences";
+import { FALLBACK_LANG, pickVoice } from "@/lib/tts/voices";
+import { createSpeechQueue, isTtsSupported, loadVoices, type SpeechQueue } from "@/lib/tts/speechQueue";
 import { playCue } from "@/lib/sounds";
 import { getServerUserName, getUserName, setUserName, subscribeUserName } from "@/lib/userProfile";
 import { micMessage, useMicLevel } from "@/hooks/useMicLevel";
@@ -24,6 +29,9 @@ const MODULES = ["Weather", "Time / Zones", "Calculator", "Reminders", "Notes"];
 
 /** If the speech service never confirms the end after release, continue anyway. */
 const STOP_TIMEOUT_MS = 2500;
+
+/** If the voice never reports "done" (e.g. online voice offline), end speaking after a sensible time. */
+const speakTimeoutMs = (chars: number) => Math.max(5000, chars * 110);
 
 /** Client shell: owns NOVA's state, the microphone, speech-to-text and the conversation. */
 export default function NovaHud() {
@@ -35,6 +43,8 @@ export default function NovaHud() {
   const turnsRef = useRef<ChatMessage[]>([]);
   const [reply, setReply] = useState<string | null>(null); //       NOVA's reply while streaming
   const [soundOn, setSoundOn] = useState(true);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null); // non-error hint under the orb
   const [lang, setLang] = useState<SpeechLang>("en-US");
   const userName = useSyncExternalStore(subscribeUserName, getUserName, getServerUserName);
 
@@ -44,11 +54,17 @@ export default function NovaHud() {
   const stopTimerRef = useRef<number | undefined>(undefined);
   const latestRef = useRef<Transcript>(EMPTY_TRANSCRIPT); // last text heard, for the timeout
   const chatAbortRef = useRef<AbortController | null>(null);
+  const speechRef = useRef<SpeechQueue | null>(null);
+  const speakTimerRef = useRef<number | undefined>(undefined);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const wordBeatRef = useRef<WordBeat>({ seen: false, last: 0 });
 
   useEffect(
     () => () => {
       window.clearTimeout(stopTimerRef.current);
+      window.clearTimeout(speakTimerRef.current);
       chatAbortRef.current?.abort();
+      speechRef.current?.cancel();
     },
     [],
   );
@@ -91,10 +107,60 @@ export default function NovaHud() {
     setTurns(turnsRef.current);
   }
 
-  /** Stop any reply in progress. Keeps the partial text so memory matches what was shown. */
+  /** Stop any reply in progress (text stream + voice). Partial text stays in memory. */
   function cancelReply() {
     chatAbortRef.current?.abort();
     chatAbortRef.current = null;
+    stopSpeaking();
+  }
+
+  function stopSpeaking() {
+    window.clearTimeout(speakTimerRef.current);
+    speechRef.current?.cancel();
+    speechRef.current = null;
+  }
+
+  /** Voice for this reply, or null (voice off / unsupported / no Urdu voice). */
+  function createSpeech(userText: string, onDone: () => void): SpeechQueue | null {
+    if (!voiceOn || !isTtsSupported()) return null;
+    const style = detectReplyStyle(userText);
+    const voices = voicesRef.current.length ? voicesRef.current : speechSynthesis.getVoices();
+    const voice = pickVoice(voices, style);
+    if (style === "urdu-script" && !voice) {
+      setNotice("No Urdu voice in this browser. Try Microsoft Edge.");
+      return null;
+    }
+    wordBeatRef.current = { seen: false, last: 0 };
+    return createSpeechQueue({
+      voice,
+      lang: FALLBACK_LANG[style],
+      onBoundary: () => {
+        wordBeatRef.current = { seen: true, last: performance.now() };
+      },
+      onDone,
+    });
+  }
+
+  /**
+   * Online "Natural" voices need a server connection before the first word (~1-3 s).
+   * Speak one silent word while the user is still talking so the real reply starts faster.
+   */
+  function warmUpVoice(voices: SpeechSynthesisVoice[]) {
+    const voice = pickVoice(voices, "english");
+    if (!voice || voice.localService) return;
+    const u = new SpeechSynthesisUtterance("ok");
+    u.voice = voice;
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  }
+
+  function toggleVoice() {
+    if (voiceOn) {
+      stopSpeaking();
+      // Text already finished? Then speaking is over.
+      if (stateRef.current === "speaking" && !chatAbortRef.current) send("REPLY_END");
+    }
+    setVoiceOn((v) => !v);
   }
 
   // ───────── Listening ─────────
@@ -106,7 +172,15 @@ export default function NovaHud() {
       return;
     }
 
-    cancelReply(); // barge-in: user talks over NOVA
+    cancelReply(); // barge-in: user talks over NOVA (stops voice immediately)
+    setNotice(null);
+    // Load voices inside a user gesture so they are ready when the reply arrives
+    if (isTtsSupported() && voicesRef.current.length === 0) {
+      void loadVoices().then((v) => {
+        voicesRef.current = v;
+        if (voiceOn) warmUpVoice(v);
+      });
+    }
     talkingRef.current = true;
     setLive(EMPTY_TRANSCRIPT);
     latestRef.current = EMPTY_TRANSCRIPT;
@@ -168,6 +242,16 @@ export default function NovaHud() {
     chatAbortRef.current = controller;
     setReply("");
 
+    // Voice: speak each sentence as soon as it is complete.
+    const chunker = createSentenceChunker();
+    const speech = createSpeech(userText, () => {
+      if (speechRef.current !== speech) return; // an old reply
+      speechRef.current = null;
+      window.clearTimeout(speakTimerRef.current);
+      if (stateRef.current === "speaking") send("REPLY_END");
+    });
+    speechRef.current = speech;
+
     let full = "";
     let started = false;
     try {
@@ -176,13 +260,14 @@ export default function NovaHud() {
         lang,
         userName,
         signal: controller.signal,
-        onToken: (_piece, soFar) => {
+        onToken: (piece, soFar) => {
           full = soFar;
           if (!started) {
             started = true;
             send("REPLY_START"); // thinking -> speaking on the first token
           }
           setReply(soFar);
+          for (const sentence of chunker.push(piece)) speech?.enqueue(sentence);
         },
       });
     } catch (err) {
@@ -190,6 +275,7 @@ export default function NovaHud() {
       setReply(null);
       if (partial) addTurn({ role: "assistant", content: partial });
       if (controller.signal.aborted) return; // barge-in or clear: not an error
+      if (speechRef.current === speech) stopSpeaking();
       fail(err instanceof ChatError ? CHAT_ERROR_MESSAGES[err.code] : CHAT_ERROR_MESSAGES.upstream);
       return;
     } finally {
@@ -197,10 +283,26 @@ export default function NovaHud() {
     }
 
     setReply(null);
-    if (full.trim()) addTurn({ role: "assistant", content: full.trim() });
-    // Phase 5 ends "speaking" when the voice finishes; for now, when the text finishes.
-    if (stateRef.current === "speaking") send("REPLY_END");
-    else if (stateRef.current === "thinking") send("RESET"); // empty reply
+    const text = full.trim();
+    if (text) addTurn({ role: "assistant", content: text });
+
+    if (stateRef.current === "thinking") {
+      send("RESET"); // empty reply
+      return;
+    }
+
+    // Text is done. "Speaking" ends when the voice finishes (or right now if there is no voice).
+    if (speech && !speech.cancelled && speechRef.current === speech) {
+      for (const sentence of chunker.flush()) speech.enqueue(sentence);
+      speech.finish();
+      speakTimerRef.current = window.setTimeout(() => {
+        if (speechRef.current !== speech) return;
+        stopSpeaking();
+        if (stateRef.current === "speaking") send("REPLY_END");
+      }, speakTimeoutMs(text.length));
+    } else if (stateRef.current === "speaking") {
+      send("REPLY_END");
+    }
   }
 
   function clearConversation() {
@@ -230,8 +332,6 @@ export default function NovaHud() {
     <div className="relative z-10 flex flex-1 flex-col">
       <StatusBar
         micStatus={mic.status}
-        soundOn={soundOn}
-        onToggleSound={() => setSoundOn((v) => !v)}
         lang={lang}
         onLangChange={changeLang}
         langLocked={state === "listening"}
@@ -242,8 +342,8 @@ export default function NovaHud() {
       <main className="grid flex-1 grid-cols-1 items-center gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-10">
         {/* Center: orb + state (first on mobile) */}
         <div className="flex flex-col items-center lg:order-2">
-          <Orb state={state} micLevelRef={mic.levelRef} />
-          <StatusPill state={state} detail={errorText} />
+          <Orb state={state} micLevelRef={mic.levelRef} wordBeatRef={wordBeatRef} />
+          <StatusPill state={state} detail={errorText ?? notice} />
         </div>
 
         <TranscriptPanel
@@ -272,6 +372,12 @@ export default function NovaHud() {
 
       <footer className="flex flex-col items-center gap-6 px-5 pb-10 pt-2">
         <TalkButton active={state === "listening"} onPressStart={() => void startTalk()} onPressEnd={endTalk} />
+        <AudioToggles
+          voiceOn={voiceOn}
+          onToggleVoice={toggleVoice}
+          soundOn={soundOn}
+          onToggleSound={() => setSoundOn((v) => !v)}
+        />
         {process.env.NODE_ENV === "development" && <DevStateControls state={state} onEvent={onDevEvent} />}
       </footer>
     </div>

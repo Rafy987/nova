@@ -95,7 +95,7 @@ Portfolio project: must be real, with a live link, a Windows installer on GitHub
 2. ✅ Animated, audio-reactive orb (Web Audio API) with the 4 states + state machine
 3. ✅ Push-to-talk (button + Space) speech-to-text with live transcript (+ EN/UR toggle)
 4. ✅ Groq chat route with streaming + session memory
-5. Text-to-speech with sentence streaming (speak while text arrives) + barge-in
+5. ✅ Text-to-speech with sentence streaming (speak while text arrives) + barge-in. Voices: Edge has natural English + Urdu (ur-PK) online voices; Chrome has no Urdu voice; Electron only has local robotic English voices (consider Groq Orpheus TTS later).
 6. Tool framework (typed tools, zod validation, risk levels, confirmation card) + web tools: time, calculator, weather (HUD cards)
 7. Notes, reminders and timers tools
 8. Electron shell: wrap the Next.js UI, secure preload/IPC, dev + build scripts, desktop vs web detection

@@ -25,18 +25,29 @@ export function smooth(prev: number, target: number, attack = 0.35, release = 0.
   return prev + (target - prev) * k;
 }
 
+/** Word-boundary info from the speech engine (see lib/tts/speechQueue.ts). */
+export interface VoicePulse {
+  seen: boolean; //            boundary events arrive for this reply
+  msSinceBoundary: number; //  time since the last spoken word started
+}
+
 /**
  * Target level for the orb per state at time t (seconds).
  * - listening: real mic level
- * - speaking: synthetic voice-like pulse for now (real TTS signal comes in Phase 5)
+ * - speaking: a kick on every spoken word when the browser reports words;
+ *   otherwise a synthetic voice-like pulse (browsers don't expose TTS audio)
  */
-export function targetLevel(state: NovaState, t: number, micLevel: number): number {
+export function targetLevel(state: NovaState, t: number, micLevel: number, voice?: VoicePulse): number {
   switch (state) {
     case "listening":
       return micLevel;
     case "thinking":
       return 0.08 + 0.04 * Math.sin(t * 3);
     case "speaking": {
+      if (voice?.seen) {
+        const envelope = Math.max(0, 1 - voice.msSinceBoundary / 280);
+        return 0.12 + 0.6 * envelope;
+      }
       const syllables = Math.abs(Math.sin(t * 9)) * (0.6 + 0.4 * Math.sin(t * 2.3));
       return 0.15 + 0.5 * syllables;
     }

@@ -36,6 +36,13 @@ describe("targetLevel", () => {
     expect(targetLevel("listening", 1, 0.7)).toBe(0.7);
     expect(targetLevel("idle", 1, 0.7)).toBe(0);
   });
+  it("kicks on each spoken word, then decays", () => {
+    const justNow = targetLevel("speaking", 1, 0, { seen: true, msSinceBoundary: 0 });
+    const later = targetLevel("speaking", 1, 0, { seen: true, msSinceBoundary: 500 });
+    expect(justNow).toBeCloseTo(0.72);
+    expect(later).toBeCloseTo(0.12);
+  });
+
   it("stays in 0..1 while speaking", () => {
     for (let t = 0; t < 5; t += 0.1) {
       const v = targetLevel("speaking", t, 0);
