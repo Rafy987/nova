@@ -93,7 +93,7 @@ Portfolio project: must be real, with a live link, a Windows installer on GitHub
 ## Build phases (in order)
 1. ✅ Project setup + HUD layout + design tokens (dark theme, accent color, fonts) + static orb
 2. ✅ Animated, audio-reactive orb (Web Audio API) with the 4 states + state machine
-3. Push-to-talk (button + Space) speech-to-text with live transcript
+3. ✅ Push-to-talk (button + Space) speech-to-text with live transcript (+ EN/UR toggle)
 4. Groq chat route with streaming + session memory
 5. Text-to-speech with sentence streaming (speak while text arrives) + barge-in
 6. Tool framework (typed tools, zod validation, risk levels, confirmation card) + web tools: time, calculator, weather (HUD cards)

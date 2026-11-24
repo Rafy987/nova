@@ -1,5 +1,5 @@
 import { EMPTY_TRANSCRIPT, fullText, joinResults, type ResultChunk, type Transcript } from "@/lib/transcript";
-import type { SttCallbacks, SttErrorCode, SttProvider } from "./types";
+import type { SpeechLang, SttCallbacks, SttErrorCode, SttProvider } from "./types";
 
 /*
  * Browser Web Speech API (Chrome/Edge). Audio is processed by the browser vendor's servers.
@@ -41,12 +41,14 @@ function mapError(error: string): SttErrorCode | null {
       return "no-mic";
     case "network":
       return "network";
+    case "language-not-supported":
+      return "language-unsupported";
     default:
       return "unknown";
   }
 }
 
-export function createWebSpeechProvider(lang = "en-US"): SttProvider {
+export function createWebSpeechProvider(lang: SpeechLang = "en-US"): SttProvider {
   let current: SpeechRecognitionLike | null = null;
 
   function detach(rec: SpeechRecognitionLike) {

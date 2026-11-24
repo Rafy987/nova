@@ -2,7 +2,21 @@ import type { Transcript } from "@/lib/transcript";
 
 /** Speech-to-text provider. Web Speech now; Groq Whisper plugs into the same shape later. */
 
-export type SttErrorCode = "unsupported" | "not-allowed" | "no-mic" | "network" | "unknown";
+/** Recognition languages. Urdu comes back in Urdu script (not Roman Urdu). */
+export type SpeechLang = "en-US" | "ur-PK";
+
+export const SPEECH_LANGS: { value: SpeechLang; label: string; name: string }[] = [
+  { value: "en-US", label: "EN", name: "English" },
+  { value: "ur-PK", label: "UR", name: "Urdu" },
+];
+
+export type SttErrorCode =
+  | "unsupported"
+  | "not-allowed"
+  | "no-mic"
+  | "network"
+  | "language-unsupported"
+  | "unknown";
 
 export interface SttCallbacks {
   /** Live text while the user speaks. */
@@ -28,4 +42,5 @@ export const STT_MESSAGES: Record<SttErrorCode, string> = {
   "no-mic": "No microphone found.",
   network: "Speech service unreachable. Check your internet connection.",
   unknown: "Speech recognition failed. Try again.",
+  "language-unsupported": "This browser cannot recognize the selected language. Try Chrome, or switch to EN.",
 };

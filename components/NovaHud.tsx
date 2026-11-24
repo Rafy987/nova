@@ -11,7 +11,7 @@ import DevStateControls from "@/components/hud/DevStateControls";
 import { canTransition, transition, type NovaEvent, type NovaState } from "@/lib/novaState";
 import { EMPTY_TRANSCRIPT, fullText, type Transcript } from "@/lib/transcript";
 import { createWebSpeechProvider } from "@/lib/stt/webSpeech";
-import { STT_MESSAGES, type SttErrorCode, type SttProvider } from "@/lib/stt/types";
+import { STT_MESSAGES, type SpeechLang, type SttErrorCode, type SttProvider } from "@/lib/stt/types";
 import { playCue } from "@/lib/sounds";
 import { micMessage, useMicLevel } from "@/hooks/useMicLevel";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
@@ -31,6 +31,7 @@ export default function NovaHud() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<Transcript>(EMPTY_TRANSCRIPT);
   const [soundOn, setSoundOn] = useState(true);
+  const [lang, setLang] = useState<SpeechLang>("en-US");
 
   const mic = useMicLevel();
   const sttRef = useRef<SttProvider | null>(null);
@@ -48,8 +49,16 @@ export default function NovaHud() {
   );
 
   function stt(): SttProvider {
-    sttRef.current ??= createWebSpeechProvider("en-US");
+    sttRef.current ??= createWebSpeechProvider(lang);
     return sttRef.current;
+  }
+
+  /** Switch recognition language (only while not listening). Provider is rebuilt on next use. */
+  function changeLang(next: SpeechLang) {
+    if (next === lang || stateRef.current === "listening") return;
+    sttRef.current?.abort();
+    sttRef.current = null;
+    setLang(next);
   }
 
   /** Every state change goes through the pure state machine. */
@@ -150,7 +159,14 @@ export default function NovaHud() {
 
   return (
     <div className="relative z-10 flex flex-1 flex-col">
-      <StatusBar micStatus={mic.status} soundOn={soundOn} onToggleSound={() => setSoundOn((v) => !v)} />
+      <StatusBar
+        micStatus={mic.status}
+        soundOn={soundOn}
+        onToggleSound={() => setSoundOn((v) => !v)}
+        lang={lang}
+        onLangChange={changeLang}
+        langLocked={state === "listening"}
+      />
 
       <main className="grid flex-1 grid-cols-1 items-center gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-10">
         {/* Center: orb + state (first on mobile) */}
@@ -161,6 +177,7 @@ export default function NovaHud() {
 
         <TranscriptPanel
           transcript={transcript}
+          lang={lang}
           listening={state === "listening"}
           className="w-full lg:order-1 lg:max-w-sm lg:justify-self-end"
         />
