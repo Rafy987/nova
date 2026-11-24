@@ -6,11 +6,13 @@ const corner = "pointer-events-none absolute h-2.5 w-2.5 border-accent";
 export default function Panel({
   label,
   meta,
+  action,
   children,
   className = "",
 }: {
   label: string;
   meta?: string;
+  action?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -27,7 +29,10 @@ export default function Panel({
           <span aria-hidden className="h-1 w-1 bg-accent shadow-[0_0_6px_var(--color-accent)]" />
           {label}
         </h2>
-        {meta && <span className="hud-label text-dim">{meta}</span>}
+        <div className="flex items-center gap-3">
+          {meta && <span className="hud-label text-dim">{meta}</span>}
+          {action}
+        </div>
       </div>
       <div className="p-4">{children}</div>
     </section>

@@ -236,3 +236,9 @@ body {
 @keyframes nova-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Thin HUD scrollbar */
+.hud-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(34 211 238 / 0.35) transparent;
+}

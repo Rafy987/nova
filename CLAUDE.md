@@ -28,7 +28,7 @@ Portfolio project: must be real, with a live link, a Windows installer on GitHub
 ## Tech stack
 - Next.js (App Router) + TypeScript + Tailwind CSS v4
 - Speech-to-text: browser Web Speech API first (free); Groq Whisper (free tier) as the better/fallback option. **In Electron, Web Speech recognition does not work** (it depends on Google's servers that only Chrome can use), so the desktop app uses Groq Whisper. Keep an STT provider interface from Phase 3.
-- LLM: Groq (free tier) with streaming responses and tool calling
+- LLM: Groq (free tier), model `openai/gpt-oss-120b` (low reasoning effort for speed; override with `GROQ_MODEL`), streaming responses and tool calling
 - Text-to-speech: browser speechSynthesis first (free); keep a provider interface so a better voice can be plugged in later
 - Streaming: server route handlers that stream tokens; start speaking the first sentence before the full answer is done (low latency)
 - Visuals: react-three-fiber (three.js) or Canvas for the orb; Web Audio API `AnalyserNode` so the orb reacts to the real microphone and to NOVA's voice
@@ -94,7 +94,7 @@ Portfolio project: must be real, with a live link, a Windows installer on GitHub
 1. ✅ Project setup + HUD layout + design tokens (dark theme, accent color, fonts) + static orb
 2. ✅ Animated, audio-reactive orb (Web Audio API) with the 4 states + state machine
 3. ✅ Push-to-talk (button + Space) speech-to-text with live transcript (+ EN/UR toggle)
-4. Groq chat route with streaming + session memory
+4. ✅ Groq chat route with streaming + session memory
 5. Text-to-speech with sentence streaming (speak while text arrives) + barge-in
 6. Tool framework (typed tools, zod validation, risk levels, confirmation card) + web tools: time, calculator, weather (HUD cards)
 7. Notes, reminders and timers tools

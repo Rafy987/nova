@@ -12,38 +12,41 @@ import { canTransition, transition, type NovaEvent, type NovaState } from "@/lib
 import { EMPTY_TRANSCRIPT, fullText, type Transcript } from "@/lib/transcript";
 import { createWebSpeechProvider } from "@/lib/stt/webSpeech";
 import { STT_MESSAGES, type SpeechLang, type SttErrorCode, type SttProvider } from "@/lib/stt/types";
+import { trimHistory } from "@/lib/chat/history";
+import { ChatError, streamChat } from "@/lib/chat/client";
+import { CHAT_ERROR_MESSAGES, type ChatMessage } from "@/lib/chat/types";
 import { playCue } from "@/lib/sounds";
 import { micMessage, useMicLevel } from "@/hooks/useMicLevel";
 import { usePushToTalk } from "@/hooks/usePushToTalk";
 
 const MODULES = ["Weather", "Time / Zones", "Calculator", "Reminders", "Notes"];
 
-/** How long "thinking" shows before returning to idle. Placeholder until Phase 4 (Groq). */
-const PLACEHOLDER_THINK_MS = 1200;
-
 /** If the speech service never confirms the end after release, continue anyway. */
 const STOP_TIMEOUT_MS = 2500;
 
-/** Client shell: owns NOVA's state, the microphone and speech-to-text. */
+/** Client shell: owns NOVA's state, the microphone, speech-to-text and the conversation. */
 export default function NovaHud() {
   const [state, setStateValue] = useState<NovaState>("idle");
   const stateRef = useRef<NovaState>("idle"); // latest state for async callbacks
   const [errorText, setErrorText] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<Transcript>(EMPTY_TRANSCRIPT);
+  const [live, setLive] = useState<Transcript>(EMPTY_TRANSCRIPT); // what the user is saying now
+  const [turns, setTurns] = useState<ChatMessage[]>([]); //          session memory
+  const turnsRef = useRef<ChatMessage[]>([]);
+  const [reply, setReply] = useState<string | null>(null); //       NOVA's reply while streaming
   const [soundOn, setSoundOn] = useState(true);
   const [lang, setLang] = useState<SpeechLang>("en-US");
 
   const mic = useMicLevel();
   const sttRef = useRef<SttProvider | null>(null);
   const talkingRef = useRef(false); // true while the talk key/button is held
-  const thinkTimerRef = useRef<number | undefined>(undefined);
   const stopTimerRef = useRef<number | undefined>(undefined);
   const latestRef = useRef<Transcript>(EMPTY_TRANSCRIPT); // last text heard, for the timeout
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   useEffect(
     () => () => {
-      window.clearTimeout(thinkTimerRef.current);
       window.clearTimeout(stopTimerRef.current);
+      chatAbortRef.current?.abort();
     },
     [],
   );
@@ -81,6 +84,19 @@ export default function NovaHud() {
     setErrorText(message);
   }
 
+  function addTurn(m: ChatMessage) {
+    turnsRef.current = [...turnsRef.current, m];
+    setTurns(turnsRef.current);
+  }
+
+  /** Stop any reply in progress. Keeps the partial text so memory matches what was shown. */
+  function cancelReply() {
+    chatAbortRef.current?.abort();
+    chatAbortRef.current = null;
+  }
+
+  // ───────── Listening ─────────
+
   async function startTalk() {
     if (talkingRef.current || !canTransition(stateRef.current, "LISTEN")) return;
     if (!stt().isSupported()) {
@@ -88,9 +104,9 @@ export default function NovaHud() {
       return;
     }
 
+    cancelReply(); // barge-in: user talks over NOVA
     talkingRef.current = true;
-    window.clearTimeout(thinkTimerRef.current);
-    setTranscript(EMPTY_TRANSCRIPT);
+    setLive(EMPTY_TRANSCRIPT);
     latestRef.current = EMPTY_TRANSCRIPT;
     if (soundOn) playCue("start");
     send("LISTEN");
@@ -98,7 +114,7 @@ export default function NovaHud() {
     stt().start({
       onPartial: (t) => {
         latestRef.current = t;
-        setTranscript(t);
+        setLive(t);
       },
       onEnd: handleSttEnd,
       onError: handleSttError,
@@ -129,18 +145,67 @@ export default function NovaHud() {
     window.clearTimeout(stopTimerRef.current);
     talkingRef.current = false;
     if (stateRef.current !== "listening") return;
+    setLive(EMPTY_TRANSCRIPT);
     if (!text) {
       send("CANCEL");
       return;
     }
-    setTranscript({ final: text, interim: "" });
     send("STOP_LISTENING");
-    // Phase 4 sends `text` to Groq here. Until then, return to idle.
-    thinkTimerRef.current = window.setTimeout(() => send("RESET"), PLACEHOLDER_THINK_MS);
+    void askNova(text);
   }
 
   function handleSttError(code: SttErrorCode) {
     fail(STT_MESSAGES[code]);
+  }
+
+  // ───────── Thinking + reply ─────────
+
+  async function askNova(userText: string) {
+    addTurn({ role: "user", content: userText });
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
+    setReply("");
+
+    let full = "";
+    let started = false;
+    try {
+      full = await streamChat({
+        messages: trimHistory(turnsRef.current),
+        lang,
+        signal: controller.signal,
+        onToken: (_piece, soFar) => {
+          full = soFar;
+          if (!started) {
+            started = true;
+            send("REPLY_START"); // thinking -> speaking on the first token
+          }
+          setReply(soFar);
+        },
+      });
+    } catch (err) {
+      const partial = full.trim();
+      setReply(null);
+      if (partial) addTurn({ role: "assistant", content: partial });
+      if (controller.signal.aborted) return; // barge-in or clear: not an error
+      fail(err instanceof ChatError ? CHAT_ERROR_MESSAGES[err.code] : CHAT_ERROR_MESSAGES.upstream);
+      return;
+    } finally {
+      if (chatAbortRef.current === controller) chatAbortRef.current = null;
+    }
+
+    setReply(null);
+    if (full.trim()) addTurn({ role: "assistant", content: full.trim() });
+    // Phase 5 ends "speaking" when the voice finishes; for now, when the text finishes.
+    if (stateRef.current === "speaking") send("REPLY_END");
+    else if (stateRef.current === "thinking") send("RESET"); // empty reply
+  }
+
+  function clearConversation() {
+    cancelReply();
+    turnsRef.current = [];
+    setTurns([]);
+    setReply(null);
+    if (stateRef.current === "thinking" || stateRef.current === "speaking") send("RESET");
   }
 
   usePushToTalk(startTalk, endTalk);
@@ -152,6 +217,7 @@ export default function NovaHud() {
       if (e === "CANCEL" || e === "FAIL" || e === "RESET") {
         talkingRef.current = false;
         stt().abort();
+        cancelReply();
       }
       send(e);
     }
@@ -176,9 +242,13 @@ export default function NovaHud() {
         </div>
 
         <TranscriptPanel
-          transcript={transcript}
-          lang={lang}
+          turns={turns}
+          live={live}
+          reply={reply}
           listening={state === "listening"}
+          lang={lang}
+          onClear={clearConversation}
+          clearDisabled={state === "listening"}
           className="w-full lg:order-1 lg:max-w-sm lg:justify-self-end"
         />
 
